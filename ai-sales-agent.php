@@ -61,6 +61,9 @@ class Plugin {
         // Initialize REST endpoints
         (new \Andana\Elizabeth\REST\Inventory())->init();
 
+        // Auto-updates desde el servidor propio
+        ( new Updater() )->init();
+
         // Initialize Admin
         if ( is_admin() ) {
             $admin = new Admin\Setup();
