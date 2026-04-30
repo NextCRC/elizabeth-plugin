@@ -1,0 +1,156 @@
+/* Admin Dashboard Styles for Elizabeth AI */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --elizabeth-primary: #0f172a;
+    --elizabeth-secondary: #2563eb;
+    --elizabeth-bg: #f8fafc;
+    --elizabeth-card-bg: #ffffff;
+    --elizabeth-text: #0f172a;
+    --elizabeth-text-muted: #64748b;
+    --elizabeth-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
+    --elizabeth-radius: 16px;
+}
+
+.elizabeth-dashboard {
+    font-family: 'Outfit', sans-serif;
+    padding: 30px;
+    max-width: 900px;
+    margin: 20px auto 0 0;
+    color: var(--elizabeth-text);
+}
+
+/* Header Section */
+.elizabeth-header {
+    background: var(--elizabeth-primary);
+    border-radius: var(--elizabeth-radius);
+    padding: 40px;
+    color: white;
+    margin-bottom: 30px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--elizabeth-shadow);
+}
+
+.elizabeth-header-logo {
+    height: 52px;
+    width: auto;
+    object-fit: contain;
+    object-position: left center;
+    display: block;
+    margin-bottom: 14px;
+}
+
+.elizabeth-header p {
+    font-size: 16px;
+    margin: 0;
+    opacity: 0.9;
+    font-weight: 300;
+}
+
+/* Status Banner */
+.elizabeth-status-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 8px 15px;
+    border-radius: 20px;
+    width: fit-content;
+    margin-top: 20px;
+    font-size: 14px;
+    backdrop-filter: blur(5px);
+}
+
+.elizabeth-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #cbd5e1; /* Default offline */
+}
+
+.elizabeth-status-dot.active {
+    background-color: #10b981;
+    box-shadow: 0 0 10px #10b981;
+}
+
+/* Content Cards */
+.elizabeth-card {
+    background: var(--elizabeth-card-bg);
+    border-radius: var(--elizabeth-radius);
+    padding: 30px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    margin-bottom: 30px;
+    border: 1px solid #e2e8f0;
+}
+
+.elizabeth-card h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--elizabeth-text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Form Styling */
+.elizabeth-form-group {
+    margin-bottom: 20px;
+}
+
+.elizabeth-form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--elizabeth-text);
+}
+
+.elizabeth-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    background: #f8fafc;
+}
+
+.elizabeth-input:focus {
+    border-color: var(--elizabeth-secondary);
+    background: #ffffff;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    outline: none;
+}
+
+/* Submit Button */
+.elizabeth-btn-save {
+    background: var(--elizabeth-secondary);
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+
+.elizabeth-btn-save:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(37, 99, 235, 0.3);
+    background: #1d4ed8;
+}
+
+.elizabeth-btn-save:active {
+    transform: translateY(0);
+}
+
+/* WP Overrides to clean up the page */
+.elizabeth-dashboard ~ #wpfooter {
+    display: none;
+}
