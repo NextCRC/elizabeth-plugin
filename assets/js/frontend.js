@@ -347,7 +347,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     lockWidget(envelope.data.message || 'Has alcanzado el límite de respuestas de tu plan.');
                     return;
                 }
-                throw new Error('Proxy error: ' + (envelope.data?.message || 'unknown'));
+                clearTimeout(typingTimeout);
+                removeTypingIndicator();
+                var serverMsg = (envelope.data && envelope.data.message)
+                    ? envelope.data.message
+                    : 'No se pudo procesar tu mensaje.';
+                appendMessage(serverMsg, 'ai');
+                return;
             }
 
             const data = envelope.data;
