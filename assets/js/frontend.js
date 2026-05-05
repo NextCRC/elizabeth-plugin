@@ -5,10 +5,12 @@
 document.addEventListener('DOMContentLoaded', function () {
 
     let isConfigured = true;
-    if (typeof aiSalesAgentData === 'undefined' || !aiSalesAgentData.licenseKey) {
-        console.warn('AI Sales Agent: Missing configuration.');
+    if (typeof aiSalesAgentData === 'undefined' || !aiSalesAgentData.nonce) {
         isConfigured = false;
     }
+
+    // Precalculado una vez: PHP ya garantiza que responseDelay está entre 5 y 60.
+    const BASE_DELAY = isConfigured ? (aiSalesAgentData.responseDelay || 18) * 1000 : 18000;
 
     const toggleBtn    = document.getElementById('ai-sales-agent-toggle');
     const container    = document.getElementById('ai-sales-agent-container');
@@ -22,7 +24,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // Session ID para rastreo de conversación — localStorage para persistir entre pestañas
     let sessionId = localStorage.getItem('elizabeth_session_id');
     if (!sessionId) {
-        sessionId = 'sess_' + Math.random().toString(36).substring(2, 15);
+        sessionId = 'sess_' + Array.from(
+            crypto.getRandomValues(new Uint8Array(16)),
+            function(b) { return b.toString(16).padStart(2, '0'); }
+        ).join('');
         localStorage.setItem('elizabeth_session_id', sessionId);
     }
 
@@ -40,35 +45,31 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    function sanitizeSystemHtml(html) {
+        return String(html)
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '')
+            .replace(/javascript\s*:/gi, '');
+    }
+
     // ── Catálogo ──────────────────────────────────────────────────────────────
     let inventoryCache   = null;
     let inventoryPromise = null;
 
     async function loadInventory() {
-        const cached  = localStorage.getItem('elizabeth_inventory');
-        const cacheTs = localStorage.getItem('elizabeth_inventory_ts');
-        if (cached && cacheTs && (Date.now() - Number(cacheTs)) < 5 * 60 * 1000) {
-            inventoryCache = JSON.parse(cached);
-            return;
-        }
         try {
             const inventoryUrl = aiSalesAgentData.inventoryUrl
                 || (aiSalesAgentData.siteUrl || window.location.origin).replace(/\/$/, '') + '/wp-json/elizabeth/v1/inventory';
 
-            const res = await fetch(inventoryUrl, {
-                headers: { 'X-Elizabeth-License': aiSalesAgentData.licenseKey }
-            });
+            const res = await fetch(inventoryUrl);
             if (res.ok) {
                 const data = await res.json();
                 inventoryCache = Array.isArray(data) ? data : [];
-                localStorage.setItem('elizabeth_inventory', JSON.stringify(inventoryCache));
-                localStorage.setItem('elizabeth_inventory_ts', String(Date.now()));
-                console.log('Elizabeth: catálogo cargado —', inventoryCache.length, 'productos.');
             } else {
-                console.warn('Elizabeth: inventario HTTP ' + res.status + '. Verifica la License Key en WordPress.');
+                inventoryCache = [];
             }
         } catch (e) {
-            console.warn('Elizabeth: catálogo no disponible.', e);
+            inventoryCache = [];
         }
     }
 
@@ -116,9 +117,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const msgDiv = document.createElement('div');
             msgDiv.className = 'ai-message ai-message-' + msg.sender;
             if (msg.sender === 'ai') {
-                msgDiv.innerHTML = linkify(msg.text).replace(/\n/g, '<br>');
+                msgDiv.innerHTML = linkify(escapeHtml(msg.text)).replace(/\n/g, '<br>');
             } else if (msg.sender === 'system') {
-                msgDiv.innerHTML = msg.text;
+                msgDiv.innerHTML = sanitizeSystemHtml(msg.text);
             } else {
                 msgDiv.innerHTML = escapeHtml(msg.text).replace(/\n/g, '<br>');
             }
@@ -180,7 +181,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Honeypot anti-bot
             if (hpInput && hpInput.value.trim() !== '') return;
 
-            const userName = nameInput ? nameInput.value.trim() : '';
+            const userName = nameInput ? nameInput.value.trim().slice(0, 50) : '';
             if (userName === '') {
                 if (errorEl) errorEl.style.display = 'block';
                 if (nameInput) nameInput.focus();
@@ -195,6 +196,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 greetingEl.innerHTML = greetingText;
                 if (messageHistory.length === 0) {
                     messageHistory.push({ text: greetingText, sender: 'system' });
+                    if (messageHistory.length > 30) messageHistory.splice(0, messageHistory.length - 30);
                     localStorage.setItem('elizabeth_messages', JSON.stringify(messageHistory));
                 }
             }
@@ -238,15 +240,16 @@ document.addEventListener('DOMContentLoaded', function () {
         const msgDiv = document.createElement('div');
         msgDiv.className = 'ai-message ai-message-' + sender;
         if (sender === 'ai') {
-            msgDiv.innerHTML = linkify(text).replace(/\n/g, '<br>');
+            msgDiv.innerHTML = linkify(escapeHtml(text)).replace(/\n/g, '<br>');
         } else if (sender === 'system') {
-            msgDiv.innerHTML = text;
+            msgDiv.innerHTML = sanitizeSystemHtml(text);
         } else {
             msgDiv.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
         }
         messagesArea.appendChild(msgDiv);
         if (save) {
             messageHistory.push({ text: text, sender: sender });
+            if (messageHistory.length > 30) messageHistory.splice(0, messageHistory.length - 30);
             localStorage.setItem('elizabeth_messages', JSON.stringify(messageHistory));
         }
         scrollToBottom();
@@ -270,6 +273,18 @@ document.addEventListener('DOMContentLoaded', function () {
         if (el) el.remove();
     }
 
+    function lockWidget(message) {
+        const inputArea = document.querySelector('.ai-sales-agent-input-area');
+        if (inputArea) {
+            const p = document.createElement('p');
+            p.style.cssText = 'margin:0;padding:12px 16px;font-size:13px;color:#888;text-align:center;line-height:1.5;';
+            p.textContent = '🔒 ' + message;
+            inputArea.innerHTML = '';
+            inputArea.appendChild(p);
+        }
+        sendBtn.disabled = true;
+    }
+
     // ── Enviar mensaje ────────────────────────────────────────────────────────
     async function sendMessage() {
         const text = inputField.value.trim();
@@ -287,8 +302,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const sendTimestamp = Date.now();
-        // Retardo orgánico: entre 18 y 23 segundos
-        const targetDelay = 18000 + Math.floor(Math.random() * 5000);
+        const targetDelay   = BASE_DELAY + Math.floor(Math.random() * 5000);
         // El indicador de typing aparece solo después de 8 s de silencio
         const typingTimeout = setTimeout(showTypingIndicator, 8000);
 
@@ -307,26 +321,36 @@ document.addEventListener('DOMContentLoaded', function () {
         const currentProduct = detectCurrentProduct();
 
         try {
-            const response = await fetch(aiSalesAgentData.apiUrl, {
+            const response = await fetch(aiSalesAgentData.ajaxUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message:       text,
-                    user_id:       aiSalesAgentData.userId,
-                    license_key:   aiSalesAgentData.licenseKey,
-                    site_url:      aiSalesAgentData.siteUrl,
-                    page_url:      window.location.href,
-                    page_context:  currentProduct,
-                    inventory:     inventoryCache,
-                    session_id:    sessionId,
-                    customer_name: storedName,
-                    history:       conversationHistory,
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    action:          'elizabeth_chat',
+                    nonce:           aiSalesAgentData.nonce,
+                    message:         text,
+                    session_id:      sessionId,
+                    customer_name:   storedName,
+                    page_url:        window.location.href,
+                    current_product: JSON.stringify(currentProduct ?? null),
+                    inventory:       JSON.stringify(inventoryCache ?? []),
+                    history:         JSON.stringify(conversationHistory),
                 })
             });
 
             if (!response.ok) throw new Error('Network response was not ok');
 
-            const data = await response.json();
+            const envelope = await response.json();
+            if (!envelope.success) {
+                if (envelope.data?.status === 429) {
+                    clearTimeout(typingTimeout);
+                    removeTypingIndicator();
+                    lockWidget(envelope.data.message || 'Has alcanzado el límite de respuestas de tu plan.');
+                    return;
+                }
+                throw new Error('Proxy error: ' + (envelope.data?.message || 'unknown'));
+            }
+
+            const data = envelope.data;
             const replyText = (data && (data.reply || data.response))
                 ? (data.reply || data.response)
                 : 'Recibido. Estamos procesando tu solicitud.';
@@ -342,7 +366,6 @@ document.addEventListener('DOMContentLoaded', function () {
             appendMessage(replyText, 'ai');
 
         } catch (error) {
-            console.error('AI Sales Agent Error:', error);
             const elapsed   = Date.now() - sendTimestamp;
             const remaining = Math.max(0, targetDelay - elapsed);
             if (remaining > 0) {

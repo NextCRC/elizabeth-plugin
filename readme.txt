@@ -4,7 +4,7 @@ Tags: ai, chatbot, sales agent, woocommerce, customer service
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPL-2.0+
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -65,6 +65,14 @@ Las actualizaciones aparecen automáticamente en WordPress → Plugins, igual qu
 Escríbenos a soporte@nextcrc.com o visita https://elizabeth.nextcrc.com/soporte
 
 == Changelog ==
+
+= 1.0.2 =
+* Mejoras de seguridad: detección de IP real detrás de Cloudflare/proxies en rate limiting
+* Retardo de respuesta configurable desde el panel de administración (5-60 s)
+* Constante SYNC_INVENTORY_ENDPOINT extraída para mejor mantenibilidad
+* Verificación de integridad de actualizaciones más específica (dominio del proyecto)
+* Corrección XSS en lockWidget del frontend
+* BASE_DELAY del chat precalculado una sola vez por sesión
 
 = 1.0.1 =
 * Sistema de actualizaciones automáticas desde servidor propio

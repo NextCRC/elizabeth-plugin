@@ -11,16 +11,48 @@ if ( ! defined( 'WPINC' ) ) {
 
 class Updater {
 
-    private const UPDATE_ENDPOINT = 'https://mvzapxphslinrmqcsavp.supabase.co/functions/v1/plugin-update-check';
+    private const UPDATE_ENDPOINT   = 'https://mvzapxphslinrmqcsavp.supabase.co/functions/v1/plugin-update-check';
+    private const SUPABASE_HOST     = 'mvzapxphslinrmqcsavp.supabase.co';
     private const PLUGIN_SLUG     = 'elizabeth-customer-service';
     private const PLUGIN_FILE     = 'elizabeth-customer-service/ai-sales-agent.php';
     private const CACHE_KEY       = 'elizabeth_update_info';
+    private const HASH_KEY        = 'elizabeth_update_hash';
     private const CACHE_TTL       = 43200; // 12 horas
 
     public function init(): void {
         add_filter( 'pre_set_site_transient_update_plugins', [ $this, 'check_for_update' ] );
         add_filter( 'plugins_api', [ $this, 'plugin_info' ], 20, 3 );
         add_action( 'upgrader_process_complete', [ $this, 'purge_cache' ], 10, 2 );
+        add_filter( 'upgrader_pre_download', [ $this, 'verify_package_integrity' ], 10, 3 );
+    }
+
+    /**
+     * Descarga el paquete, verifica su hash SHA-256 y devuelve la ruta al ZIP temporal.
+     * Si el hash no coincide, aborta con WP_Error antes de que WordPress instale nada.
+     */
+    public function verify_package_integrity( $reply, $package, $upgrader ) {
+        $expected_hash = get_transient( self::HASH_KEY );
+
+        // Solo interceptar nuestro paquete: hash almacenado Y URL del proyecto específico.
+        if ( ! $expected_hash || false === strpos( $package, self::SUPABASE_HOST ) ) {
+            return $reply;
+        }
+
+        $tmp_file = download_url( $package );
+        if ( is_wp_error( $tmp_file ) ) {
+            return $tmp_file;
+        }
+
+        $actual_hash = hash_file( 'sha256', $tmp_file );
+        if ( ! hash_equals( $expected_hash, $actual_hash ) ) {
+            @unlink( $tmp_file );
+            return new \WP_Error(
+                'elizabeth_integrity_check_failed',
+                __( 'La verificación de integridad del paquete de actualización falló. La actualización fue cancelada por seguridad.', 'elizabeth-customer-service' )
+            );
+        }
+
+        return $tmp_file;
     }
 
     /**
@@ -98,6 +130,7 @@ class Updater {
     public function purge_cache( $upgrader, $options ): void {
         if ( 'update' === $options['action'] && 'plugin' === $options['type'] ) {
             delete_transient( self::CACHE_KEY );
+            delete_transient( self::HASH_KEY );
         }
     }
 
@@ -133,6 +166,24 @@ class Updater {
         $data = json_decode( wp_remote_retrieve_body( $response ) );
         if ( ! $data || ! isset( $data->version ) ) {
             return null;
+        }
+
+        if ( isset( $data->download_hash ) && preg_match( '/^[a-f0-9]{64}$/', $data->download_hash ) ) {
+            set_transient( self::HASH_KEY, $data->download_hash, self::CACHE_TTL );
+        }
+
+        // Validar tipos de los campos críticos antes de cachear.
+        if ( ! isset( $data->version ) || ! is_string( $data->version ) ) {
+            return null;
+        }
+        if ( isset( $data->download_url ) && ! filter_var( $data->download_url, FILTER_VALIDATE_URL ) ) {
+            return null;
+        }
+        if ( isset( $data->requires ) && ! is_string( $data->requires ) ) {
+            $data->requires = '6.0';
+        }
+        if ( isset( $data->tested ) && ! is_string( $data->tested ) ) {
+            $data->tested = '6.7';
         }
 
         set_transient( self::CACHE_KEY, $data, self::CACHE_TTL );

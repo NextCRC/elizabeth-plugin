@@ -55,7 +55,12 @@ class Setup {
         register_setting( 'ai_sales_agent_options_group', 'ai_sales_agent_license_key', [
             'sanitize_callback' => 'sanitize_text_field'
         ]);
-        register_setting( 'ai_sales_agent_options_group', 'ai_sales_agent_license_status' ); // store status
+        register_setting( 'ai_sales_agent_options_group', 'ai_sales_agent_license_status', [
+            'sanitize_callback' => 'sanitize_text_field',
+        ]);
+        register_setting( 'ai_sales_agent_options_group', 'ai_sales_agent_response_delay', [
+            'sanitize_callback' => [ $this, 'sanitize_response_delay' ],
+        ]);
 
         add_settings_section(
             'ai_sales_agent_main_section',
@@ -76,6 +81,14 @@ class Setup {
             'ai_sales_agent_license_key',
             'Clave de Licencia (License Key)',
             [ $this, 'license_key_callback' ],
+            'elizabeth-ai',
+            'ai_sales_agent_main_section'
+        );
+
+        add_settings_field(
+            'ai_sales_agent_response_delay',
+            'Retardo de respuesta (segundos)',
+            [ $this, 'response_delay_callback' ],
             'elizabeth-ai',
             'ai_sales_agent_main_section'
         );
@@ -104,6 +117,7 @@ class Setup {
                 'user_id'     => $user_id,
                 'license_key' => $new_value,
                 'site_url'    => get_site_url(),
+                'timestamp'   => time(),
             ])
         ]);
 
@@ -145,6 +159,16 @@ class Setup {
         $val = get_option( 'ai_sales_agent_license_key', '' );
         echo '<input type="password" id="ai_sales_agent_license_key" name="ai_sales_agent_license_key" value="' . esc_attr( $val ) . '" class="elizabeth-input" placeholder="••••••••••••••••" />';
         echo '<p style="color: var(--elizabeth-text-muted); font-size: 12px; margin-top: 5px;">La clave de activación vinculada a tu suscripción.</p>';
+    }
+
+    public function response_delay_callback() {
+        $val = (int) get_option( 'ai_sales_agent_response_delay', 18 );
+        echo '<input type="number" id="ai_sales_agent_response_delay" name="ai_sales_agent_response_delay" value="' . esc_attr( $val ) . '" min="5" max="60" step="1" class="elizabeth-input" style="max-width:120px;" />';
+        echo '<p style="color: var(--elizabeth-text-muted); font-size: 12px; margin-top: 5px;">Segundos mínimos antes de mostrar la respuesta (5–60). Se añaden hasta 5 s aleatorios para simular un agente humano.</p>';
+    }
+
+    public function sanitize_response_delay( $value ): int {
+        return max( 5, min( 60, (int) $value ) );
     }
 
     /**
@@ -200,7 +224,7 @@ class Setup {
                 <p style="color: var(--elizabeth-text-muted); font-size: 14px; line-height: 1.6;">
                     Puedes gestionar tus licencias, ver métricas de chat y alimentar la base de conocimientos de Elizabeth desde el panel web externo de control.
                 </p>
-                <a href="https://ejemplo-saas-dashboard.com" target="_blank" style="color: var(--elizabeth-primary); font-weight: 500; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; gap: 5px;">
+                <a href="https://elizabeth.nextcrc.com" target="_blank" style="color: var(--elizabeth-primary); font-weight: 500; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; gap: 5px;">
                     Ir al Dashboard Externo
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>

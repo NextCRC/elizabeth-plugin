@@ -20,7 +20,39 @@ class Inventory {
         ]);
     }
 
+    private function check_rate_limit( string $ip ): bool {
+        $key     = 'elizabeth_rl_' . md5( $ip );
+        $hits    = (int) get_transient( $key );
+        if ( $hits >= 20 ) {
+            return false;
+        }
+        set_transient( $key, $hits + 1, 60 ); // ventana de 60 segundos
+        return true;
+    }
+
+    private function get_client_ip(): string {
+        if ( ! empty( $_SERVER['HTTP_CF_CONNECTING_IP'] ) ) {
+            // CF-Connecting-IP tiene prioridad: Cloudflare lo fija internamente y no puede ser suplantado por el cliente.
+            $candidate = $_SERVER['HTTP_CF_CONNECTING_IP'];
+        } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+            // X-Forwarded-For puede ser inyectado por el cliente; se usa solo como fallback.
+            $candidate = trim( explode( ',', $_SERVER['HTTP_X_FORWARDED_FOR'] )[0] );
+        } else {
+            $candidate = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        }
+        return filter_var( $candidate, FILTER_VALIDATE_IP ) ?: '0.0.0.0';
+    }
+
     public function validate_request( $request ) {
+        $ip = $this->get_client_ip();
+        if ( ! $this->check_rate_limit( $ip ) ) {
+            return new \WP_Error(
+                'rest_too_many_requests',
+                __( 'Demasiadas solicitudes. Intenta de nuevo en un momento.', 'elizabeth' ),
+                [ 'status' => 429 ]
+            );
+        }
+
         $stored_key = get_option( 'ai_sales_agent_license_key', '' );
 
         if ( empty( $stored_key ) ) {
@@ -83,9 +115,7 @@ class Inventory {
                 'sku'               => $product->get_sku() ?: null,
                 'price'             => $price_display,
                 'short_description' => wp_strip_all_tags( wp_trim_words( $product->get_short_description(), 20 ) ) ?: null,
-                'stock'             => $product->get_stock_quantity() !== null
-                    ? $product->get_stock_quantity()
-                    : ( $product->is_in_stock() ? 'Disponible' : 'Agotado' ),
+                'stock'             => $product->is_in_stock() ? 'Disponible' : 'Agotado',
                 'categories'        => is_array( $cats ) ? wp_list_pluck( $cats, 'name' ) : [],
                 'tags'              => is_array( $tags ) ? wp_list_pluck( $tags, 'name' ) : [],
                 'permalink'         => $product->get_permalink(),

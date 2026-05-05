@@ -50,7 +50,7 @@
                 </div>
 
                 <!-- Honeypot anti-bot -->
-                <input type="text" id="elizabeth-hp" name="elizabeth_email_confirm" style="position:absolute;left:-5000px;" tabindex="-1" autocomplete="off">
+                <input type="text" id="elizabeth-hp" name="elizabeth_email_confirm" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;opacity:0;" tabindex="-1" autocomplete="off" aria-hidden="true">
 
                 <p id="elizabeth-name-error" class="ai-form-error" style="display:none;">Por favor, escribe tu nombre para continuar.</p>
 
