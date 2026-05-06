@@ -49,9 +49,6 @@ class Setup {
      * Register plugin settings.
      */
     public function register_settings() {
-        register_setting( 'ai_sales_agent_options_group', 'ai_sales_agent_user_id', [
-            'sanitize_callback' => 'sanitize_text_field'
-        ]);
         register_setting( 'ai_sales_agent_options_group', 'ai_sales_agent_license_key', [
             'sanitize_callback' => 'sanitize_text_field'
         ]);
@@ -67,14 +64,6 @@ class Setup {
             'Configuración de Conexión',
             [ $this, 'main_section_callback' ],
             'elizabeth-ai'
-        );
-
-        add_settings_field(
-            'ai_sales_agent_user_id',
-            'API Base de Conocimiento (User ID)',
-            [ $this, 'user_id_callback' ],
-            'elizabeth-ai',
-            'ai_sales_agent_main_section'
         );
 
         add_settings_field(
@@ -107,17 +96,13 @@ class Setup {
             return $new_value; // No change, already active
         }
 
-        $user_id = isset( $_POST['ai_sales_agent_user_id'] ) ? sanitize_text_field( $_POST['ai_sales_agent_user_id'] ) : get_option( 'ai_sales_agent_user_id' );
-
         $response = wp_remote_post( 'https://mvzapxphslinrmqcsavp.supabase.co/functions/v1/validate-license', [
             'method'  => 'POST',
             'timeout' => 10,
             'headers' => [ 'Content-Type' => 'application/json' ],
             'body'    => wp_json_encode([
-                'user_id'     => $user_id,
                 'license_key' => $new_value,
                 'site_url'    => get_site_url(),
-                'timestamp'   => time(),
             ])
         ]);
 
@@ -147,12 +132,6 @@ class Setup {
 
     public function main_section_callback() {
         echo '<p style="color: var(--elizabeth-text-muted); font-size: 15px; margin-bottom: 25px;">Ingresa las credenciales de tu cuenta SaaS para activar a Elizabeth en esta tienda.</p>';
-    }
-
-    public function user_id_callback() {
-        $val = get_option( 'ai_sales_agent_user_id', '' );
-        echo '<input type="text" id="ai_sales_agent_user_id" name="ai_sales_agent_user_id" value="' . esc_attr( $val ) . '" class="elizabeth-input" placeholder="Ej: a1b2c3d4-e5f6-..." />';
-        echo '<p style="color: var(--elizabeth-text-muted); font-size: 12px; margin-top: 5px;">Tu User ID del dashboard SaaS. Encuéntralo en <strong>Sitios → Plugin WordPress & Credenciales → API Base de Conocimiento</strong>.</p>';
     }
 
     public function license_key_callback() {

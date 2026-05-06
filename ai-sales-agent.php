@@ -181,10 +181,9 @@ class Plugin {
         check_ajax_referer( 'elizabeth_chat_nonce', 'nonce' );
 
         // 2. Credenciales solo server-side.
-        $user_id     = get_option( 'ai_sales_agent_user_id', '' );
         $license_key = get_option( 'ai_sales_agent_license_key', '' );
 
-        if ( empty( $user_id ) || empty( $license_key ) ) {
+        if ( empty( $license_key ) ) {
             wp_send_json_error( [ 'message' => 'Plugin not configured.' ], 503 );
         }
 
@@ -210,7 +209,6 @@ class Plugin {
         // 4. Construir payload para la Edge Function.
         $payload = [
             'message'       => $message,
-            'user_id'       => $user_id,
             'license_key'   => $license_key,
             'site_url'      => get_site_url(),
             'page_url'      => $page_url,
