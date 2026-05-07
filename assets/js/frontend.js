@@ -12,6 +12,17 @@ document.addEventListener('DOMContentLoaded', function () {
     // Precalculado una vez: PHP ya garantiza que responseDelay está entre 5 y 60.
     const BASE_DELAY = isConfigured ? (aiSalesAgentData.responseDelay || 18) * 1000 : 18000;
 
+    // Helper de traducción: obtiene un string del objeto i18n pasado por PHP.
+    // ti() acepta un objeto de reemplazos para interpolación (ej. {name}).
+    const _i18n = (isConfigured && aiSalesAgentData.i18n) ? aiSalesAgentData.i18n : {};
+    function t(key) { return _i18n[key] || key; }
+    function ti(key, vars) {
+        return Object.entries(vars).reduce(
+            function(str, pair) { return str.replace('{' + pair[0] + '}', pair[1]); },
+            t(key)
+        );
+    }
+
     const toggleBtn    = document.getElementById('ai-sales-agent-toggle');
     const container    = document.getElementById('ai-sales-agent-container');
     const closeBtn     = document.getElementById('ai-sales-agent-close');
@@ -139,7 +150,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('ai-sales-agent-onboarding').style.display = 'none';
         document.getElementById('ai-sales-agent-chat-flow').style.display  = 'flex';
         if (messageHistory.length === 0 && greetingDiv) {
-            greetingDiv.innerHTML = '¡Hola <strong>' + escapeHtml(storedNameInit) + '</strong>! 👋 Soy <strong>Elizabeth</strong>, tu asistente inteligente. ¿En qué te puedo ayudar hoy?';
+            greetingDiv.innerHTML = ti('personalGreeting', { name: escapeHtml(storedNameInit) });
         }
         if (isWidgetOpen) {
             setTimeout(function () { inputField.focus(); scrollToBottom(); }, 100);
@@ -192,7 +203,7 @@ document.addEventListener('DOMContentLoaded', function () {
             localStorage.setItem('elizabeth_user_name', userName);
 
             if (greetingEl) {
-                const greetingText = '¡Hola <strong>' + escapeHtml(userName) + '</strong>! 👋 Soy <strong>Elizabeth</strong>, tu asistente inteligente. ¿En qué te puedo ayudar hoy?';
+                const greetingText = ti('personalGreeting', { name: escapeHtml(userName) });
                 greetingEl.innerHTML = greetingText;
                 if (messageHistory.length === 0) {
                     messageHistory.push({ text: greetingText, sender: 'system' });
@@ -297,7 +308,7 @@ document.addEventListener('DOMContentLoaded', function () {
         appendMessage(text, 'user');
 
         if (!isConfigured) {
-            appendMessage('⚠️ El agente no ha sido configurado. Ingresa tu License Key y API Base de Conocimiento en el panel de administración.', 'ai');
+            appendMessage(t('notConfigured'), 'ai');
             return;
         }
 
@@ -342,14 +353,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (envelope.data?.status === 429) {
                     clearTimeout(typingTimeout);
                     removeTypingIndicator();
-                    lockWidget(envelope.data.message || 'Has alcanzado el límite de respuestas de tu plan.');
+                    lockWidget(envelope.data.message || t('rateLimitReached'));
                     return;
                 }
                 clearTimeout(typingTimeout);
                 removeTypingIndicator();
                 var serverMsg = (envelope.data && envelope.data.message)
                     ? envelope.data.message
-                    : 'No se pudo procesar tu mensaje.';
+                    : t('processingError');
                 appendMessage(serverMsg, 'ai');
                 return;
             }
@@ -357,7 +368,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = envelope.data;
             const replyText = (data && (data.reply || data.response))
                 ? (data.reply || data.response)
-                : 'Recibido. Estamos procesando tu solicitud.';
+                : t('fallbackReply');
 
             const elapsed   = Date.now() - sendTimestamp;
             const remaining = Math.max(0, targetDelay - elapsed);
@@ -377,7 +388,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             clearTimeout(typingTimeout);
             removeTypingIndicator();
-            appendMessage('Lo siento, hubo un error de conexión. Por favor intenta nuevamente.', 'ai');
+            appendMessage(t('networkError'), 'ai');
         }
     }
 });

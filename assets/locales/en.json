@@ -1,0 +1,21 @@
+{
+  "openChat": "Open chat",
+  "closeChat": "Close chat",
+  "chatWithElizabeth": "Chat with Elizabeth",
+  "online": "Online",
+  "onboardingTitle": "Hello! 👋",
+  "onboardingText": "Please tell us your name to start chatting.",
+  "namePlaceholder": "Your name",
+  "nameError": "Please enter your name to continue.",
+  "startBtn": "Start",
+  "defaultGreeting": "Hello! 👋 I'm here to help you find the perfect product. How can I help you today?",
+  "personalGreeting": "Hello <strong>{name}</strong>! 👋 I'm <strong>Elizabeth</strong>, your smart assistant. How can I help you today?",
+  "messagePlaceholder": "Type your message...",
+  "messageLabel": "Message",
+  "sendLabel": "Send",
+  "notConfigured": "⚠️ The agent has not been configured. Please enter your License Key in the admin panel.",
+  "rateLimitReached": "You have reached your plan's response limit.",
+  "processingError": "Could not process your message.",
+  "fallbackReply": "Received. We are processing your request.",
+  "networkError": "Sorry, there was a connection error. Please try again."
+}

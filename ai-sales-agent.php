@@ -98,6 +98,41 @@ class Plugin {
         return $links;
     }
 
+    /**
+     * Carga los strings de UI del widget desde el JSON de locale correspondiente.
+     * Mapea el locale de WordPress (ej. es_CR, pt_BR) a los tres idiomas soportados.
+     */
+    private function get_i18n_strings(): array {
+        $wp_locale = get_locale();
+        $lang      = 'en';
+
+        if ( strpos( $wp_locale, 'es' ) === 0 ) {
+            $lang = 'es';
+        } elseif ( strpos( $wp_locale, 'pt' ) === 0 ) {
+            $lang = 'pt';
+        }
+
+        $json_file = AI_SALES_AGENT_PLUGIN_DIR . 'assets/locales/' . $lang . '.json';
+
+        if ( file_exists( $json_file ) ) {
+            $strings = json_decode( file_get_contents( $json_file ), true );
+            if ( is_array( $strings ) ) {
+                return $strings;
+            }
+        }
+
+        // Fallback a inglés si el archivo falla
+        $fallback = AI_SALES_AGENT_PLUGIN_DIR . 'assets/locales/en.json';
+        if ( file_exists( $fallback ) ) {
+            $strings = json_decode( file_get_contents( $fallback ), true );
+            if ( is_array( $strings ) ) {
+                return $strings;
+            }
+        }
+
+        return [];
+    }
+
     public function enqueue_scripts() {
         $user_id     = get_option( 'ai_sales_agent_user_id', '' );
         $license_key = get_option( 'ai_sales_agent_license_key', '' );
@@ -156,6 +191,7 @@ class Plugin {
             'inventoryUrl'   => rest_url( 'elizabeth/v1/inventory' ),
             'currentProduct' => $current_product,
             'responseDelay'  => (int) get_option( 'ai_sales_agent_response_delay', 18 ),
+            'i18n'           => $this->get_i18n_strings(),
         ] );
     }
 
@@ -167,6 +203,7 @@ class Plugin {
             return;
         }
 
+        $i18n = $this->get_i18n_strings();
         include AI_SALES_AGENT_PLUGIN_DIR . 'templates/chat-widget.php';
     }
 
@@ -242,7 +279,7 @@ class Plugin {
         if ( $status_code !== 200 || ! is_array( $decoded ) ) {
             $upstream_msg = ( is_array( $decoded ) && isset( $decoded['error'] ) )
                 ? $decoded['error']
-                : 'Upstream error.';
+                : 'Error ' . $status_code . ': ' . wp_remote_retrieve_body( $response );
             wp_send_json_error( [ 'message' => $upstream_msg, 'status' => $status_code ], 502 );
         }
 
