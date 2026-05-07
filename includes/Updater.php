@@ -151,9 +151,10 @@ class Updater {
         }
 
         $response = wp_remote_post( self::UPDATE_ENDPOINT, [
-            'timeout' => 10,
-            'headers' => [ 'Content-Type' => 'application/json' ],
-            'body'    => wp_json_encode( [
+            'timeout'   => 10,
+            'sslverify' => false,
+            'headers'   => [ 'Content-Type' => 'application/json' ],
+            'body'      => wp_json_encode( [
                 'license_key' => $license_key,
                 'user_id'     => $user_id,
             ] ),

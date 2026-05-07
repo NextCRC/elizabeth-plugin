@@ -3,7 +3,7 @@
  * Plugin Name: Elizabeth - Customer Service
  * Plugin URI: https://nextcrc.com/elizabeth
  * Description: Elizabeth es una Agente de Ventas Inteligente impulsada por IA.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: NextCRC
  * License: GPL-2.0+
  */
@@ -16,7 +16,7 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 // Define Plugin Constants
-define( 'AI_SALES_AGENT_VERSION', '1.0.2' );
+define( 'AI_SALES_AGENT_VERSION', '1.0.3' );
 define( 'AI_SALES_AGENT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AI_SALES_AGENT_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -226,6 +226,7 @@ class Plugin {
             'redirection' => 5,
             'httpversion' => '1.1',
             'blocking'    => true,
+            'sslverify'   => false,
             'headers'     => [ 'Content-Type' => 'application/json' ],
             'body'        => wp_json_encode( $payload ),
         ] );
@@ -279,7 +280,7 @@ class Plugin {
             'redirection' => 5,
             'httpversion' => '1.1',
             'blocking'    => false,
-            'sslverify'   => true,
+            'sslverify'   => false,
             'headers'     => [ 'Content-Type' => 'application/json' ],
             'body'        => wp_json_encode( $payload ),
         ] );
