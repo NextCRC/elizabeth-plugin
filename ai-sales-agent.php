@@ -232,7 +232,7 @@ class Plugin {
         ] );
 
         if ( is_wp_error( $response ) ) {
-            wp_send_json_error( [ 'message' => 'Connection error.' ], 502 );
+            wp_send_json_error( [ 'message' => $response->get_error_message() ], 502 );
         }
 
         $status_code  = wp_remote_retrieve_response_code( $response );

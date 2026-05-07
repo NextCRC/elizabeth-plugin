@@ -337,10 +337,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 })
             });
 
-            if (!response.ok) throw new Error('Network response was not ok');
-
             const envelope = await response.json();
-            if (!envelope.success) {
+            if (!response.ok || !envelope.success) {
                 if (envelope.data?.status === 429) {
                     clearTimeout(typingTimeout);
                     removeTypingIndicator();
