@@ -263,7 +263,7 @@ class Plugin {
             'redirection' => 5,
             'httpversion' => '1.1',
             'blocking'    => true,
-            'sslverify'   => false,
+            'sslverify'   => true,
             'headers'     => [ 'Content-Type' => 'application/json' ],
             'body'        => wp_json_encode( $payload ),
         ] );
@@ -317,7 +317,7 @@ class Plugin {
             'redirection' => 5,
             'httpversion' => '1.1',
             'blocking'    => false,
-            'sslverify'   => false,
+            'sslverify'   => true,
             'headers'     => [ 'Content-Type' => 'application/json' ],
             'body'        => wp_json_encode( $payload ),
         ] );
