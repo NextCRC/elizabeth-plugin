@@ -63,34 +63,12 @@ document.addEventListener('DOMContentLoaded', function () {
             .replace(/javascript\s*:/gi, '');
     }
 
-    // ── Catálogo ──────────────────────────────────────────────────────────────
-    let inventoryCache   = null;
-    let inventoryPromise = null;
+    // ── Catálogo (Desactivado en modo Vectorial por seguridad y eficiencia) ──
 
-    async function loadInventory() {
-        try {
-            const inventoryUrl = aiSalesAgentData.inventoryUrl
-                || (aiSalesAgentData.siteUrl || window.location.origin).replace(/\/$/, '') + '/wp-json/elizabeth/v1/inventory';
 
-            const res = await fetch(inventoryUrl);
-            if (res.ok) {
-                const data = await res.json();
-                inventoryCache = Array.isArray(data) ? data : [];
-            } else {
-                inventoryCache = [];
-            }
-        } catch (e) {
-            inventoryCache = [];
-        }
-    }
-
-    // Cargar catálogo de inmediato; mantener el botón deshabilitado hasta que termine
+    // Catálogo desactivado: la IA lo consulta vía RAG/Vectores en el servidor.
     if (isConfigured && sendBtn) {
-        sendBtn.disabled = true;
-        inventoryPromise = loadInventory().finally(() => {
-            inventoryPromise = null;
-            if (inputField.value.trim() === '') sendBtn.disabled = true;
-        });
+        sendBtn.disabled = false;
     }
 
     // ── Producto actual ───────────────────────────────────────────────────────
@@ -114,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     };
                 }
             }
-        } catch (_) {}
+        } catch {}
         return null;
     }
 
@@ -229,14 +207,20 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // ── Input ─────────────────────────────────────────────────────────────────
+    let isProcessing = false;
+
     inputField.addEventListener('input', function () {
+        if (isProcessing) return;
         this.style.height = 'auto';
         this.style.height = this.scrollHeight + 'px';
         sendBtn.disabled = this.value.trim() === '';
     });
 
     inputField.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+        if (e.key === 'Enter' && !e.shiftKey) { 
+            e.preventDefault(); 
+            if (!isProcessing) sendMessage(); 
+        }
     });
 
     sendBtn.addEventListener('click', sendMessage);
@@ -298,11 +282,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── Enviar mensaje ────────────────────────────────────────────────────────
     async function sendMessage() {
+        if (isProcessing) return;
         const text = inputField.value.trim();
         if (!text) return;
 
+        isProcessing = true;
         inputField.value = '';
         inputField.style.height = 'auto';
+        inputField.readOnly = true;
         sendBtn.disabled = true;
 
         appendMessage(text, 'user');
@@ -324,11 +311,6 @@ document.addEventListener('DOMContentLoaded', function () {
             .slice(-10)
             .map(function (msg) { return { role: msg.sender === 'ai' ? 'assistant' : 'user', content: msg.text }; });
 
-        // Esperar catálogo si aún está cargando (máx. 8 s)
-        if (inventoryPromise) {
-            await Promise.race([inventoryPromise, new Promise(function (r) { setTimeout(r, 8000); })]);
-        }
-
         const currentProduct = detectCurrentProduct();
 
         try {
@@ -343,7 +325,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     customer_name:   storedName,
                     page_url:        window.location.href,
                     current_product: JSON.stringify(currentProduct ?? null),
-                    inventory:       JSON.stringify(inventoryCache ?? []),
                     history:         JSON.stringify(conversationHistory),
                 })
             });
@@ -380,7 +361,7 @@ document.addEventListener('DOMContentLoaded', function () {
             removeTypingIndicator();
             appendMessage(replyText, 'ai');
 
-        } catch (error) {
+        } catch {
             const elapsed   = Date.now() - sendTimestamp;
             const remaining = Math.max(0, targetDelay - elapsed);
             if (remaining > 0) {
@@ -389,6 +370,11 @@ document.addEventListener('DOMContentLoaded', function () {
             clearTimeout(typingTimeout);
             removeTypingIndicator();
             appendMessage(t('networkError'), 'ai');
+        } finally {
+            isProcessing = false;
+            inputField.readOnly = false;
+            sendBtn.disabled = inputField.value.trim() === '';
+            inputField.focus();
         }
     }
 });

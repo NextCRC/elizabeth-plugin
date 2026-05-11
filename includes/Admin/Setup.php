@@ -16,8 +16,14 @@ class Setup {
         add_action( 'admin_init', [ $this, 'register_settings' ] );
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
         
+        // AJAX Sync Handler
+        add_action( 'wp_ajax_elizabeth_sync_all_products', [ $this, 'ajax_sync_all_products' ] );
+        
         // Validation Hook
         add_filter( 'pre_update_option_ai_sales_agent_license_key', [ $this, 'validate_license_key' ], 10, 2 );
+
+        // Sincronización Vectorial de Productos (RAG)
+        add_action( 'woocommerce_update_product', [ $this, 'sync_product_vector' ], 10, 1 );
     }
 
     /**
@@ -130,6 +136,74 @@ class Setup {
         return $new_value;
     }
 
+    /**
+     * AJAX handler para sincronizar todos los productos de una vez.
+     */
+    public function ajax_sync_all_products() {
+        check_ajax_referer( 'elizabeth_sync_nonce', '_ajax_nonce' );
+        
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( 'Permiso denegado' );
+        }
+
+        if ( ! function_exists( 'wc_get_products' ) ) {
+            wp_send_json_error( 'WooCommerce no está activo' );
+        }
+
+        $license = get_option( 'ai_sales_agent_license_key' );
+        if ( empty( $license ) ) {
+            wp_send_json_error( 'No hay una licencia activa' );
+        }
+
+        // Obtenemos todos los productos publicados
+        $products = wc_get_products( [ 'status' => 'publish', 'limit' => -1 ] );
+        $count = 0;
+
+        foreach ( $products as $product ) {
+            // Reutilizamos nuestra lógica de sincronización
+            $this->sync_product_vector( $product->get_id() );
+            $count++;
+            
+            // Pequeña pausa para no saturar el servidor si hay miles
+            if ($count % 50 === 0) {
+                usleep(500000); // 0.5 segundos
+            }
+        }
+
+        wp_send_json_success( [ 'count' => $count ] );
+    }
+
+    /**
+     * Sincroniza un producto con Supabase para generar su embedding vectorial.
+     */
+    public function sync_product_vector( $product_id ) {
+        $product = wc_get_product( $product_id );
+        $license = get_option( 'ai_sales_agent_license_key' );
+
+        if ( empty( $license ) || ! $product ) return;
+
+        $data = [
+            'license_key' => $license,
+            'site_url'    => get_site_url(),
+            'product'     => [
+                'id'          => $product->get_id(),
+                'name'        => $product->get_name(),
+                'description' => wp_strip_all_tags( $product->get_short_description() ?: $product->get_description() ),
+                'sku'         => $product->get_sku(),
+                'price'       => $product->get_price(),
+                'permalink'   => $product->get_permalink(),
+            ]
+        ];
+
+        wp_remote_post( 'https://mvzapxphslinrmqcsavp.supabase.co/functions/v1/vectorize-product', [
+            'method'      => 'POST',
+            'timeout'     => 15,
+            'blocking'    => false, // No bloqueamos la carga de WP
+            'headers'     => [ 'Content-Type' => 'application/json' ],
+            'body'        => wp_json_encode( $data ),
+        ]);
+    }
+
     public function main_section_callback() {
         echo '<p style="color: var(--elizabeth-text-muted); font-size: 15px; margin-bottom: 25px;">Ingresa las credenciales de tu cuenta SaaS para activar a Elizabeth en esta tienda.</p>';
     }
@@ -211,6 +285,63 @@ class Setup {
                         <line x1="10" y1="14" x2="21" y2="3"></line>
                     </svg>
                 </a>
+            </div>
+
+            <!-- Sync Inventory Card -->
+            <div class="elizabeth-card" style="margin-top: 20px;">
+                <h2 style="font-size: 16px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 2v6h-6"></path>
+                        <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                        <path d="M3 22v-6h6"></path>
+                        <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                    </svg>
+                    Sincronización Masiva de Inventario
+                </h2>
+                <p style="color: var(--elizabeth-text-muted); font-size: 14px;">
+                    Usa esta opción para enviar todo tu catálogo de productos a Elizabeth por primera vez. Esto permitirá que la IA conozca todos tus productos actuales.
+                </p>
+                <div id="elizabeth-sync-progress" style="display:none; margin: 15px 0;">
+                    <div style="background: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden;">
+                        <div id="elizabeth-sync-bar" style="background: var(--elizabeth-primary); width: 0%; height: 100%; transition: width 0.3s;"></div>
+                    </div>
+                    <p id="elizabeth-sync-status" style="font-size: 12px; margin-top: 5px; color: var(--elizabeth-text-muted);"></p>
+                </div>
+                <button type="button" id="elizabeth-btn-sync-all" class="elizabeth-btn-save" style="background: #1e293b; border-color: #1e293b;">
+                    Sincronizar Catálogo Completo
+                </button>
+
+                <script>
+                jQuery(document).ready(function($) {
+                    $('#elizabeth-btn-sync-all').on('click', function() {
+                        if (!confirm('¿Deseas iniciar la sincronización de todo el inventario? Esto puede tardar unos minutos.')) return;
+
+                        const btn = $(this);
+                        const progress = $('#elizabeth-sync-progress');
+                        const bar = $('#elizabeth-sync-bar');
+                        const status = $('#elizabeth-sync-status');
+
+                        btn.prop('disabled', true).text('Sincronizando...');
+                        progress.show();
+                        bar.css('width', '5%');
+                        status.text('Obteniendo catálogo...');
+
+                        $.post(ajaxurl, { 
+                            action: 'elizabeth_sync_all_products',
+                            _ajax_nonce: '<?php echo wp_create_nonce("elizabeth_sync_nonce"); ?>'
+                        }, function(response) {
+                            if (response.success) {
+                                bar.css('width', '100%');
+                                status.text('¡Sincronización completada! ' + response.data.count + ' productos procesados.');
+                                btn.text('Sincronización Exitosa').css('background', '#10b981');
+                            } else {
+                                status.text('Error: ' + response.data);
+                                btn.prop('disabled', false).text('Reintentar Sincronización');
+                            }
+                        });
+                    });
+                });
+                </script>
             </div>
         </div>
         <?php

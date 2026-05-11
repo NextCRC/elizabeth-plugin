@@ -1,2 +1,14 @@
 .DS_Store
 *.log
+node_modules/
+vendor/
+*.zip
+*.tar.gz
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+*.suo
+*.sw?
+Thumbs.db

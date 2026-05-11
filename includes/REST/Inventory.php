@@ -53,20 +53,18 @@ class Inventory {
             );
         }
 
-        // El header X-Elizabeth-License es opcional: lo envía la Edge Function
-        // para llamadas server-to-server, pero el widget del frontend no tiene
-        // acceso a la license key (se mantiene solo server-side por seguridad).
-        // Los datos de catálogo son públicos, así que el rate limit es suficiente.
+        // El header X-Elizabeth-License es OBLIGATORIO.
+        // Esto asegura que solo nuestra Edge Function (que posee la clave)
+        // pueda extraer el catálogo, protegiendo los datos del cliente.
         $header_key = $request->get_header( 'X-Elizabeth-License' );
-        if ( ! empty( $header_key ) ) {
-            $stored_key = get_option( 'ai_sales_agent_license_key', '' );
-            if ( ! empty( $stored_key ) && ! hash_equals( $stored_key, $header_key ) ) {
-                return new \WP_Error(
-                    'rest_forbidden',
-                    __( 'License key inválida.', 'elizabeth' ),
-                    [ 'status' => 403 ]
-                );
-            }
+        $stored_key = get_option( 'ai_sales_agent_license_key', '' );
+
+        if ( empty( $header_key ) || empty( $stored_key ) || ! hash_equals( $stored_key, $header_key ) ) {
+            return new \WP_Error(
+                'rest_forbidden',
+                __( 'Acceso no autorizado: Se requiere una licencia válida.', 'elizabeth' ),
+                [ 'status' => 401 ]
+            );
         }
 
         return true;
