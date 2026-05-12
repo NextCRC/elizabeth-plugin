@@ -1,0 +1,53 @@
+name: Release — publicar nueva versión del plugin
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-plugin-version:
+    name: Actualizar versión en Supabase
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Obtener versión del tag (sin la "v")
+        id: meta
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "download_url=https://github.com/NextCRC/elizabeth-plugin/releases/download/${TAG}/elizabeth-customer-service.zip" >> $GITHUB_OUTPUT
+
+      - name: Descargar ZIP y calcular SHA-256
+        id: hash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "${{ steps.meta.outputs.tag }}" \
+            --repo NextCRC/elizabeth-plugin \
+            --pattern "*.zip" \
+            --output plugin.zip
+          echo "sha256=$(sha256sum plugin.zip | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Actualizar secrets en Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          CHANGELOG=$(echo "${{ github.event.release.body }}" | jq -Rs .)
+          curl -sf -X POST \
+            "https://api.supabase.com/v1/projects/$PROJECT_ID/secrets" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "[
+              {\"name\": \"PLUGIN_VERSION\",      \"value\": \"${{ steps.meta.outputs.version }}\"},
+              {\"name\": \"PLUGIN_DOWNLOAD_URL\", \"value\": \"${{ steps.meta.outputs.download_url }}\"},
+              {\"name\": \"PLUGIN_ZIP_HASH\",     \"value\": \"${{ steps.hash.outputs.sha256 }}\"},
+              {\"name\": \"PLUGIN_CHANGELOG\",    \"value\": $CHANGELOG}
+            ]"
+
+      - name: Resumen
+        run: |
+          echo "✅ Plugin v${{ steps.meta.outputs.version }} publicado"
+          echo "📦 ZIP: ${{ steps.meta.outputs.download_url }}"
+          echo "🔐 SHA-256: ${{ steps.hash.outputs.sha256 }}"

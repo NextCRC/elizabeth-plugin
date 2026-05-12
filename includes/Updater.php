@@ -17,7 +17,7 @@ class Updater {
     private const PLUGIN_FILE     = 'elizabeth-customer-service/ai-sales-agent.php';
     private const CACHE_KEY       = 'elizabeth_update_info';
     private const HASH_KEY        = 'elizabeth_update_hash';
-    private const CACHE_TTL       = 43200; // 12 horas
+    private const CACHE_TTL       = 3600; // 1 hora
 
     public function init(): void {
         add_filter( 'pre_set_site_transient_update_plugins', [ $this, 'check_for_update' ] );
