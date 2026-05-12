@@ -83,7 +83,7 @@
     right: 0;
     width: 380px;
     height: 650px;
-    max-height: calc(100vh - 120px);
+    max-height: calc(100dvh - 120px);
     background: var(--ai-bg-solid);
     border-radius: var(--ai-radius-lg);
     box-shadow: var(--ai-shadow-heavy);
@@ -240,7 +240,7 @@
     border: 1px solid var(--ai-border-light);
     border-radius: 20px;
     padding: 12px 18px;
-    font-size: 14px;
+    font-size: 16px;
     font-family: inherit;
     resize: none;
     max-height: 120px;
@@ -316,7 +316,8 @@
     #ai-sales-agent-widget { bottom: 20px; right: 20px; }
     .ai-sales-agent-container {
         width: calc(100vw - 40px);
-        height: calc(100vh - 120px);
+        height: calc(100dvh - 120px);
+        max-height: calc(100dvh - 120px);
         bottom: 80px;
     }
 }
@@ -364,7 +365,7 @@
     border: 1px solid var(--ai-border-light);
     border-radius: 12px;
     font-family: inherit;
-    font-size: 14px;
+    font-size: 16px;
     outline: none;
     transition: all 0.3s ease;
     background: #f4f4f5;

@@ -377,4 +377,21 @@ document.addEventListener('DOMContentLoaded', function () {
             inputField.focus();
         }
     }
+
+    // Keyboard resize handler for iOS < 15.4 that doesn't support dvh
+    if (window.visualViewport && container) {
+        function handleViewportResize() {
+            var vv = window.visualViewport;
+            var keyboardHeight = window.innerHeight - vv.height - vv.offsetTop;
+            if (keyboardHeight > 50) {
+                container.style.maxHeight = (vv.height - 120) + 'px';
+                container.style.bottom = (keyboardHeight + 10) + 'px';
+            } else {
+                container.style.maxHeight = '';
+                container.style.bottom = '';
+            }
+        }
+        window.visualViewport.addEventListener('resize', handleViewportResize);
+        window.visualViewport.addEventListener('scroll', handleViewportResize);
+    }
 });
