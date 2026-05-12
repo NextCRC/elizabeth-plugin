@@ -99,6 +99,8 @@ class Inventory {
                 'name'              => $product->get_name(),
                 'sku'               => $product->get_sku() ?: null,
                 'price'             => $price_display,
+                'currency'          => get_woocommerce_currency(),
+                'currency_symbol'   => html_entity_decode( get_woocommerce_currency_symbol() ),
                 'short_description' => wp_strip_all_tags( wp_trim_words( $product->get_short_description(), 20 ) ) ?: null,
                 'stock'             => $product->is_in_stock() ? 'Disponible' : 'Agotado',
                 'categories'        => is_array( $cats ) ? wp_list_pluck( $cats, 'name' ) : [],

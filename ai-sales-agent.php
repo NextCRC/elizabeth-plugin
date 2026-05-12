@@ -47,8 +47,7 @@ class Plugin {
     /**
      * URLs internas de las Edge Functions — nunca se exponen al frontend.
      */
-    private const CHAT_ENDPOINT           = 'https://mvzapxphslinrmqcsavp.supabase.co/functions/v1/chat';
-    private const SYNC_INVENTORY_ENDPOINT = 'https://mvzapxphslinrmqcsavp.supabase.co/functions/v1/sync-inventory';
+    private const CHAT_ENDPOINT = 'https://mvzapxphslinrmqcsavp.supabase.co/functions/v1/chat';
 
     private static $instance = null;
     
@@ -83,10 +82,6 @@ class Plugin {
         // Proxy AJAX — disponible para usuarios logueados y visitantes anónimos
         add_action( 'wp_ajax_elizabeth_chat',        [ $this, 'ajax_chat_proxy' ] );
         add_action( 'wp_ajax_nopriv_elizabeth_chat', [ $this, 'ajax_chat_proxy' ] );
-        
-        // WooCommerce Hooks
-        add_action( 'woocommerce_update_product', [ $this, 'sync_product' ], 10, 2 );
-        add_action( 'woocommerce_new_product', [ $this, 'sync_product' ], 10, 2 );
         
         // Plugin Action Links
         add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), [ $this, 'add_plugin_settings_link' ] );
@@ -286,42 +281,6 @@ class Plugin {
         wp_send_json_success( $decoded );
     }
 
-    public function sync_product( $product_id, $product ) {
-        $user_id = get_option( 'ai_sales_agent_user_id', '' );
-        $license_key = get_option( 'ai_sales_agent_license_key', '' );
-
-        if ( empty( $user_id ) || empty( $license_key ) ) {
-            return;
-        }
-
-        $product_data = [
-            'product_id'   => $product->get_id(),
-            'name'         => $product->get_name(),
-            'price'        => $product->get_price(),
-            'stock_status' => $product->get_stock_status(),
-            'stock_quantity' => $product->get_stock_quantity(),
-            'permalink'    => $product->get_permalink(),
-        ];
-
-        $payload = [
-            'user_id'     => $user_id,
-            'license_key' => $license_key,
-            'site_url'    => get_site_url(),
-            'event'       => 'product_update',
-            'product'     => $product_data
-        ];
-
-        wp_remote_post( self::SYNC_INVENTORY_ENDPOINT, [
-            'method'      => 'POST',
-            'timeout'     => 5,
-            'redirection' => 5,
-            'httpversion' => '1.1',
-            'blocking'    => false,
-            'sslverify'   => true,
-            'headers'     => [ 'Content-Type' => 'application/json' ],
-            'body'        => wp_json_encode( $payload ),
-        ] );
-    }
 }
 
 // Boot the plugin

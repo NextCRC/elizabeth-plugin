@@ -24,6 +24,7 @@ class Setup {
 
         // Sincronización Vectorial de Productos (RAG)
         add_action( 'woocommerce_update_product', [ $this, 'sync_product_vector' ], 10, 1 );
+        add_action( 'woocommerce_new_product',    [ $this, 'sync_product_vector' ], 10, 1 );
     }
 
     /**
@@ -157,24 +158,27 @@ class Setup {
 
         // Obtenemos todos los productos publicados
         $products = wc_get_products( [ 'status' => 'publish', 'limit' => -1 ] );
-        $count = 0;
+        $count   = 0;
+        $errors  = [];
 
         foreach ( $products as $product ) {
-            // Reutilizamos nuestra lógica de sincronización
-            $this->sync_product_vector( $product->get_id() );
+            $result = $this->sync_product_vector_with_response( $product->get_id() );
+            if ( is_wp_error( $result ) ) {
+                $errors[] = $product->get_name() . ': ' . $result->get_error_message();
+            }
             $count++;
-            
+
             // Pequeña pausa para no saturar el servidor si hay miles
-            if ($count % 50 === 0) {
-                usleep(500000); // 0.5 segundos
+            if ( $count % 50 === 0 ) {
+                usleep( 500000 ); // 0.5 segundos
             }
         }
 
-        wp_send_json_success( [ 'count' => $count ] );
+        wp_send_json_success( [ 'count' => $count, 'errors' => $errors ] );
     }
 
     /**
-     * Sincroniza un producto con Supabase para generar su embedding vectorial.
+     * Hook automático: sincroniza en segundo plano (no bloquea WP).
      */
     public function sync_product_vector( $product_id ) {
         $product = wc_get_product( $product_id );
@@ -182,26 +186,72 @@ class Setup {
 
         if ( empty( $license ) || ! $product ) return;
 
-        $data = [
+        wp_remote_post( 'https://mvzapxphslinrmqcsavp.supabase.co/functions/v1/vectorize-product', [
+            'method'   => 'POST',
+            'timeout'  => 15,
+            'blocking' => false, // No bloqueamos la carga de WP
+            'headers'  => [ 'Content-Type' => 'application/json' ],
+            'body'     => wp_json_encode( $this->build_product_payload( $product, $license ) ),
+        ]);
+    }
+
+    /**
+     * Sincroniza un producto bloqueando hasta obtener respuesta. Retorna WP_Error en fallo.
+     */
+    private function sync_product_vector_with_response( $product_id ) {
+        $product = wc_get_product( $product_id );
+        $license = get_option( 'ai_sales_agent_license_key' );
+
+        if ( empty( $license ) || ! $product ) {
+            return new \WP_Error( 'missing_data', 'Sin licencia o producto inválido.' );
+        }
+
+        $response = wp_remote_post( 'https://mvzapxphslinrmqcsavp.supabase.co/functions/v1/vectorize-product', [
+            'method'   => 'POST',
+            'timeout'  => 20,
+            'blocking' => true,
+            'headers'  => [ 'Content-Type' => 'application/json' ],
+            'body'     => wp_json_encode( $this->build_product_payload( $product, $license ) ),
+        ]);
+
+        if ( is_wp_error( $response ) ) {
+            return $response;
+        }
+
+        $code = wp_remote_retrieve_response_code( $response );
+        if ( $code !== 200 ) {
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            $msg  = $body['error'] ?? "HTTP $code";
+            return new \WP_Error( 'vectorize_failed', $msg );
+        }
+
+        return true;
+    }
+
+    /**
+     * Construye el payload estándar para vectorize-product.
+     */
+    private function build_product_payload( \WC_Product $product, string $license ): array {
+        $cats = get_the_terms( $product->get_id(), 'product_cat' );
+        $tags = get_the_terms( $product->get_id(), 'product_tag' );
+
+        return [
             'license_key' => $license,
             'site_url'    => get_site_url(),
             'product'     => [
-                'id'          => $product->get_id(),
-                'name'        => $product->get_name(),
-                'description' => wp_strip_all_tags( $product->get_short_description() ?: $product->get_description() ),
-                'sku'         => $product->get_sku(),
-                'price'       => $product->get_price(),
-                'permalink'   => $product->get_permalink(),
-            ]
+                'id'              => $product->get_id(),
+                'name'            => $product->get_name(),
+                'description'     => wp_strip_all_tags( $product->get_description() ?: $product->get_short_description() ),
+                'short_description' => wp_strip_all_tags( $product->get_short_description() ),
+                'sku'             => $product->get_sku(),
+                'price'           => $product->get_price(),
+                'currency'        => get_woocommerce_currency(),
+                'currency_symbol' => html_entity_decode( get_woocommerce_currency_symbol() ),
+                'permalink'       => $product->get_permalink(),
+                'categories'      => is_array( $cats ) ? wp_list_pluck( $cats, 'name' ) : [],
+                'tags'            => is_array( $tags ) ? wp_list_pluck( $tags, 'name' ) : [],
+            ],
         ];
-
-        wp_remote_post( 'https://mvzapxphslinrmqcsavp.supabase.co/functions/v1/vectorize-product', [
-            'method'      => 'POST',
-            'timeout'     => 15,
-            'blocking'    => false, // No bloqueamos la carga de WP
-            'headers'     => [ 'Content-Type' => 'application/json' ],
-            'body'        => wp_json_encode( $data ),
-        ]);
     }
 
     public function main_section_callback() {
@@ -332,8 +382,14 @@ class Setup {
                         }, function(response) {
                             if (response.success) {
                                 bar.css('width', '100%');
-                                status.text('¡Sincronización completada! ' + response.data.count + ' productos procesados.');
-                                btn.text('Sincronización Exitosa').css('background', '#10b981');
+                                var msg = '¡Sincronización completada! ' + response.data.count + ' productos procesados.';
+                                if (response.data.errors && response.data.errors.length > 0) {
+                                    msg += ' ⚠️ ' + response.data.errors.length + ' error(es): ' + response.data.errors.join('; ');
+                                    btn.text('Completado con errores').css('background', '#f59e0b');
+                                } else {
+                                    btn.text('Sincronización Exitosa').css('background', '#10b981');
+                                }
+                                status.text(msg);
                             } else {
                                 status.text('Error: ' + response.data);
                                 btn.prop('disabled', false).text('Reintentar Sincronización');
