@@ -167,6 +167,8 @@ class Plugin {
                     'price'             => $wc_product->get_price(),
                     'regular_price'     => $wc_product->get_regular_price(),
                     'sale_price'        => $wc_product->get_sale_price(),
+                    'currency'          => get_woocommerce_currency(),
+                    'currency_symbol'   => html_entity_decode( get_woocommerce_currency_symbol() ),
                     'short_description' => wp_strip_all_tags( $wc_product->get_short_description() ),
                     'stock'             => $wc_product->get_stock_quantity() !== null
                         ? $wc_product->get_stock_quantity()
